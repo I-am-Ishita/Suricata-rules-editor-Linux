@@ -9,7 +9,9 @@ Prerequisites:
 
 Setup:
 1. Clone the repository.
-2. The rules/ folder is included in the repo, with ET rules and custom.rules ready to use or edit.
+2. The rules/ folder is included in the repository with ET rules and custom.rules.
+   ~ If you prefer, you can also download the full ET rules as a ZIP from the Releases page
+    and unzip it into the rules/ folder.
 
 Run:
 1. Launch the script.
