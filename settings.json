@@ -1,0 +1,7 @@
+{
+    "suricata_path": "/path/to/suricata",        // Path to the Suricata executable
+    "config_path": "/path/to/suricata.yaml",    // Path to the Suricata configuration file
+    "rules_folder": "rules",                     // Folder where all ET rules and custom.rules are stored
+    "interface": "YOUR_INTERFACE_HERE",         // Network interface to monitor (e.g., eth0, enp0s3)
+    "downloaded_rules_path": "/path/to/rules"   // Folder where downloaded ET/protocol rules are stored
+}
