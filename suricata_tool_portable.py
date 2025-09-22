@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import re
 
 # -------------------- Paths --------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # script folder
@@ -36,6 +37,25 @@ ET_RULES = [
     "emerging-worm.rules"
 ]
 
+# -------------------- Helpers --------------------
+def add_or_replace_option(line: str, key: str, value: str, quoted: bool = False) -> str:
+    """Replace or insert key:value in a Suricata rule line."""
+    k = key.rstrip(": ")
+    if quoted:
+        pattern = rf'{re.escape(k)}:\"[^\"]*\"'
+        repl = f'{k}:"{value}"'
+    else:
+        pattern = rf'{re.escape(k)}:[^;\)]*'
+        repl = f'{k}:{value}'
+    if re.search(pattern, line):
+        return re.sub(pattern, repl, line)
+    insert_text = repl if repl.endswith(";") else repl + ";"
+    idx = line.rfind(')')
+    if idx != -1:
+        return line[:idx] + ' ' + insert_text + line[idx:]
+    else:
+        return line.rstrip() + ' ' + insert_text
+
 # -------------------- Settings Functions --------------------
 def load_settings():
     if not os.path.exists(SETTINGS_FILE):
@@ -65,18 +85,67 @@ def edit_rule_file(filepath):
         open(filepath, 'w').close()
     with open(filepath, 'r') as f:
         lines = f.readlines()
+
     print("\n--- Current Rules (first 20 lines) ---")
     for i, line in enumerate(lines[:20], 1):
         print(f"{i}: {line.strip()}")
-    choice = input("\nEdit line or append new? (edit/append/skip): ").strip().lower()
+
+    choice = input("\nDo you want to edit, append, insert, or delete? (edit/append/insert/delete/skip): ").strip().lower()
+
     if choice == "edit":
+        if not lines:
+            print("File is empty.")
+            return
         line_no = int(input("Line number to edit: ").strip())
-        if 1 <= line_no <= len(lines):
-            new_text = input("New text: ")
-            lines[line_no-1] = new_text + "\n"
+        if not (1 <= line_no <= len(lines)):
+            print("Invalid line number.")
+            return
+        original_line = lines[line_no - 1].rstrip("\n")
+        print("\nSelected Line:", original_line)
+
+        new_line = original_line
+        while True:
+            print("\nWhat do you want to change?")
+            print("1. Message (msg)")
+            print("2. Content (content)")
+            print("3. Class type (classtype)")
+            print("4. SID (sid)")
+            print("5. Replace full line")
+            print("done = finish editing")
+            part_choice = input("Enter choice: ").strip().lower()
+
+            if part_choice == "1":
+                val = input("Enter new message: ").strip()
+                new_line = add_or_replace_option(new_line, "msg", val, quoted=True)
+            elif part_choice == "2":
+                val = input("Enter new content: ").strip()
+                if re.search(r'content:\"[^\"]*\"', new_line):
+                    new_line = re.sub(r'content:\"[^\"]*\"', f'content:"{val}"', new_line, count=1)
+                else:
+                    new_line = add_or_replace_option(new_line, "content", val, quoted=True)
+            elif part_choice == "3":
+                val = input("Enter new classtype: ").strip()
+                new_line = add_or_replace_option(new_line, "classtype", val)
+            elif part_choice == "4":
+                val = input("Enter new SID: ").strip()
+                new_line = add_or_replace_option(new_line, "sid", val)
+            elif part_choice == "5":
+                replacement = input("Enter full replacement: ").strip()
+                if replacement:
+                    new_line = replacement
+            elif part_choice == "done":
+                break
+            else:
+                print("Invalid choice.")
+
+        print("\nFinal Updated Line:", new_line)
+        confirm = input("Save change? (yes/no): ").strip().lower()
+        if confirm == "yes":
+            lines[line_no - 1] = new_line + "\n"
             with open(filepath, 'w') as f:
                 f.writelines(lines)
             print("Line updated!")
+
     elif choice == "append":
         new_rule = input("Enter new rule: ").strip()
         if new_rule:
@@ -84,8 +153,27 @@ def edit_rule_file(filepath):
                 f.write(new_rule + "\n")
             print("Rule appended!")
 
+    elif choice == "insert":
+        line_no = int(input("Insert before which line (1-based): ").strip())
+        new_text = input("Enter new rule: ").strip()
+        if new_text:
+            lines.insert(line_no - 1, new_text + "\n")
+            with open(filepath, 'w') as f:
+                f.writelines(lines)
+            print("Rule inserted!")
+
+    elif choice == "delete":
+        line_no = int(input("Line number to delete: ").strip())
+        if 1 <= line_no <= len(lines):
+            print("Deleting:", lines[line_no - 1].strip())
+            confirm = input("Confirm delete? (yes/no): ").strip().lower()
+            if confirm == "yes":
+                lines.pop(line_no - 1)
+                with open(filepath, 'w') as f:
+                    f.writelines(lines)
+                print("Line deleted.")
+
 def select_rule_to_edit(settings):
-    # Ensure custom.rules exists
     custom_rule_path = os.path.join(settings["rules_folder"], "custom.rules")
     if not os.path.exists(custom_rule_path):
         open(custom_rule_path, 'w').close()
